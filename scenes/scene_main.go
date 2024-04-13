@@ -7,22 +7,7 @@ import (
 	"github.com/rocco-gossmann/RayTheater/stage"
 )
 
-type sceneMainStruct struct{}
-
-var sceneMain = sceneMainStruct{}
-
-var mainSceneLoad stage.GenericFunction = func(ctx stage.Context) {
-	log.Println("scene loaded")
-}
-
-var mainSceneUnload stage.UnloadFunction = func(ctx stage.Context) *stage.Scene {
-	log.Println("scene unloaded")
-	return nil
-}
-
-var SceneMain = stage.NewScene(&sceneMain).
-	OnLoad(&mainSceneLoad).
-	OnUnload(&mainSceneUnload)
+type SceneMain struct{}
 
 func (s SceneMain) Tick(ctx stage.Context) bool {
 

@@ -1,10 +1,47 @@
 package stage
 
 import (
+	"log"
 	"math"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
+
+// Required to make sure Engine can quit by itself
+type exitSceneStruct struct{}
+
+func (s exitSceneStruct) Tick(ctx Context) bool           { return false }
+func (s exitSceneStruct) StageDraw(ctx Context)           {}
+func (s exitSceneStruct) WindowDraw(ctx Context)          {}
+func (s exitSceneStruct) Unload(ctx Context) *interface{} { return nil }
+
+var exitScene exitSceneStruct
+
+var (
+	defaultStageDraw  StageDrawable
+	defaultWindowDraw WindowDrawable
+	defaultUnload     Unloadable
+	defaultTick       Tickable
+)
+
+func init() {
+	log.SetPrefix("[Stage.init] ")
+	var ok bool = false
+
+	log.Println("exit scene: ", exitScene)
+
+	defaultStageDraw, ok = interface{}(exitScene).(StageDrawable)
+	log.Println("init StageDraw:", ok, defaultStageDraw)
+
+	defaultWindowDraw, ok = interface{}(exitScene).(WindowDrawable)
+	log.Println("init WindowDraw:", ok, defaultWindowDraw)
+
+	defaultTick, ok = interface{}(exitScene).(Tickable)
+	log.Println("init Tick:", ok, defaultTick)
+
+	defaultUnload, ok = interface{}(exitScene).(Unloadable)
+	log.Println("init Unload:", ok, defaultUnload)
+}
 
 var (
 	_stageWidth         float32 = 640
@@ -27,7 +64,11 @@ var (
 
 	_tickableStack = NewLinkedList[*Tickable]()
 
-	_scene *Scene = nil
+	_scene          any             = nil
+	_tickable       *Tickable       = &defaultTick
+	_stagedrawable  *StageDrawable  = &defaultStageDraw
+	_windowdrawable *WindowDrawable = &defaultWindowDraw
+	_unloadable     *Unloadable     = &defaultUnload
 
 	ctx = Context{}
 )
@@ -96,29 +137,41 @@ func (s Stage) Debug(level rl.TraceLogLevel) Stage {
 /** Starts to play the given Scene on the Stage
 * @param scene - a struct that implements various interfaces  (@see ./stage/scene.go)
  */
-func (s Stage) Play(sc *Scene) {
+func (s Stage) Play(sc any) {
 	s._validate()
 
+	// Just so a window opens, at all, before we do anything else.
 	rl.BeginDrawing()
 	rl.ClearBackground(rl.Red)
 	rl.EndDrawing()
 
-	rl.SetExitKey(0)
+	// disable ESC to Quit
+	// TODO: enable
+	//	rl.SetExitKey(0)
 
 	switchScene(sc)
 
 	_playing = true
 
 MainLoop:
-	for _playing && _scene != nil {
-
+	for _scene != nil {
+		log.SetPrefix("[Stage.Play] ")
 		if rl.WindowShouldClose() {
-			_playing = false
-			break
+			log.Println("Should close")
+			if _scene != &exitScene {
+				switchScene(&exitScene)
+			}
+			break MainLoop
 		}
 
 		if rl.IsWindowResized() {
 			onWindowResize(&_viewportRect, &_viewportScale)
+		}
+
+		if !(*_tickable).Tick(ctx) {
+			log.Println("tick == false => end")
+			switchScene(nil)
+			continue MainLoop
 		}
 
 		tickle := _tickableStack.Next
@@ -129,16 +182,6 @@ MainLoop:
 				dead := tickle
 				tickle = (*tickle).Next
 				dead.Drop()
-
-				// if the Dead handler belongs to the current scene
-				if dead == _sceneTicklistEntry {
-					// Switch the scene
-					switchScene(nil)
-					// and skip the rendering for this frame
-					// That way, we don't need an extra check for the
-					// _scene becoming nil (aka. the Loop ending)
-					continue MainLoop
-				}
 			}
 		}
 
@@ -146,7 +189,7 @@ MainLoop:
 		//=====================================================================
 		rl.BeginTextureMode(_stage)
 		rl.ClearBackground(_stageBackground)
-		(*_scene.StageDraw).StageDraw(ctx)
+		(*_stagedrawable).StageDraw(ctx)
 		rl.EndTextureMode()
 
 		// Drawing on Screen (Resolution/Window-Size depended)
@@ -154,7 +197,7 @@ MainLoop:
 		rl.BeginDrawing()
 		rl.ClearBackground(_viewportBackground)
 		rl.DrawTexturePro(_stage.Texture, _stageRect, _viewportRect, _stageOrigin, 0, rl.White)
-		(*_scene.WindowDraw).WindowDraw(ctx)
+		(*_windowdrawable).WindowDraw(ctx)
 		rl.EndDrawing()
 
 		// Debug outputs
@@ -163,44 +206,64 @@ MainLoop:
 		//			rl.DrawFPS(4, 4)
 		//		}
 	}
-
-	// Unload Scene if needed
-	if _scene != nil && (*_scene).Unload != nil {
-		(*_scene.Unload).Unload(ctx)
-	}
-
 }
 
-func switchScene(scene *Scene) {
+func switchScene(scene any) {
+	log.SetPrefix("[Stage.switchScene]")
+	log.Printf("Called %v %p", scene, scene)
+	if scene == nil {
+		log.Println("scene is nil => attempt to load scene from Unlaod")
+		scene = (*_unloadable).Unload(ctx)
+		log.Println("Got Scene:", scene)
 
-	if _scene != nil {
-		if (*_scene).Unload != nil {
-			if scene == nil {
-				scene = (*_scene.Unload).Unload(ctx)
-			} else {
-				(*_scene.Unload).Unload(ctx)
-			}
-		}
-
-		if _sceneTicklistEntry != nil {
-			_sceneTicklistEntry.Drop()
-			_sceneTicklistEntry = nil
-		}
-
-		_scene = nil
+	} else {
+		log.Println("scene is not nil => attempting regular unload")
+		(*_unloadable).Unload(ctx)
+		log.Println("Unload done")
 	}
 
+	_scene = nil
+
 	if scene != nil {
+		log.Println("new scene is not nil: ", scene)
 		_scene = scene
 
-		if (*_scene).Load != nil {
-			(*_scene.Load).Load(ctx)
+		if i, ok := interface{}(_scene).(Tickable); ok {
+			log.Println("Scene is Tickable:", i)
+			_tickable = &i
+		} else {
+			log.Println("Scene not Tickable:")
+			_tickable = &defaultTick
 		}
 
-		if scene.Tick != nil {
-			_sceneTicklistEntry = _tickableStack.Prepend(scene.Tick)
+		if i, ok := interface{}(_scene).(Unloadable); ok {
+			log.Println("Scene is Unloadable:", i)
+			_unloadable = &i
+		} else {
+			log.Println("Scene not Unloadable:")
+			_unloadable = &defaultUnload
 		}
 
+		if i, ok := interface{}(_scene).(WindowDrawable); ok {
+			log.Println("Scene is WindowDrawable:", i)
+			_windowdrawable = &i
+		} else {
+			log.Println("Scene not WindowDrawable:")
+			_windowdrawable = &defaultWindowDraw
+		}
+
+		if i, ok := interface{}(scene).(StageDrawable); ok {
+			log.Println("Scene is StageDrawable:", i)
+			_stagedrawable = &i
+		} else {
+			log.Println("Scene not StageDrawable:")
+			_stagedrawable = &defaultStageDraw
+		}
+
+		if l, ok := interface{}(_scene).(Loadable); ok {
+			log.Println("Scene is Loadable:", l)
+			l.Load(ctx)
+		}
 	}
 }
 

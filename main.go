@@ -11,7 +11,7 @@ import (
 // ==============================================================================
 func main() {
 
-	var ms = stage.NewScene(scenes.SceneMain{})
+	var ms scenes.SceneMain
 
 	stage.Setup(256, 192, 3.0).
 		Title("RayTheater - DemoProject").
