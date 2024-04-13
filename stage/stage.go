@@ -10,10 +10,10 @@ import (
 // Required to make sure Engine can quit by itself
 type exitSceneStruct struct{}
 
-func (s exitSceneStruct) Tick(ctx Context) bool           { return false }
-func (s exitSceneStruct) StageDraw(ctx Context)           {}
-func (s exitSceneStruct) WindowDraw(ctx Context)          {}
-func (s exitSceneStruct) Unload(ctx Context) *interface{} { return nil }
+func (s exitSceneStruct) Tick(ctx Context) bool  { return false }
+func (s exitSceneStruct) StageDraw(ctx Context)  {}
+func (s exitSceneStruct) WindowDraw(ctx Context) {}
+func (s exitSceneStruct) Unload(ctx Context) any { return nil }
 
 var exitScene exitSceneStruct
 
@@ -41,6 +41,11 @@ func init() {
 
 	defaultUnload, ok = interface{}(exitScene).(Unloadable)
 	log.Println("init Unload:", ok, defaultUnload)
+
+	_tickable = &defaultTick
+	_stagedrawable = &defaultStageDraw
+	_windowdrawable = &defaultWindowDraw
+	_unloadable = &defaultUnload
 }
 
 var (
@@ -64,11 +69,11 @@ var (
 
 	_tickableStack = NewLinkedList[*Tickable]()
 
-	_scene          any             = nil
-	_tickable       *Tickable       = &defaultTick
-	_stagedrawable  *StageDrawable  = &defaultStageDraw
-	_windowdrawable *WindowDrawable = &defaultWindowDraw
-	_unloadable     *Unloadable     = &defaultUnload
+	_scene          any = nil
+	_tickable       *Tickable
+	_stagedrawable  *StageDrawable
+	_windowdrawable *WindowDrawable
+	_unloadable     *Unloadable
 
 	ctx = Context{}
 )
@@ -212,20 +217,23 @@ func switchScene(scene any) {
 	log.SetPrefix("[Stage.switchScene]")
 	log.Printf("Called %v %p", scene, scene)
 	if scene == nil {
-		log.Println("scene is nil => attempt to load scene from Unlaod")
+		log.Println("scene is nil => attempt to load scene from Unload")
 		scene = (*_unloadable).Unload(ctx)
 		log.Println("Got Scene:", scene)
 
 	} else {
-		log.Println("scene is not nil => attempting regular unload")
+		log.Printf("scene is not nil => attempting regular unload: %v %p %v\n", scene, _unloadable, *_unloadable)
 		(*_unloadable).Unload(ctx)
 		log.Println("Unload done")
 	}
 
 	_scene = nil
 
-	if scene != nil {
-		log.Println("new scene is not nil: ", scene)
+	if scene == nil || scene == 0x0 {
+		log.Printf("new scene is nil\n")
+
+	} else {
+		log.Printf("new scene is not nil: %v (%p)\n", scene, scene)
 		_scene = scene
 
 		if i, ok := interface{}(_scene).(Tickable); ok {

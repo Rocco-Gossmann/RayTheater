@@ -5,7 +5,7 @@ type Loadable interface {
 }
 
 type Unloadable interface {
-	Unload(ctx Context) *interface{}
+	Unload(ctx Context) any
 }
 
 type Tickable interface {
