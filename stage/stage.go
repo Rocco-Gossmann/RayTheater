@@ -78,72 +78,10 @@ var (
 	ctx = Context{}
 )
 
-type Stage struct{ _valid bool }
-
-// Must be called first, to create your stage
-func Setup(stageWidth int32, stageHeight int32, scale float32) (s Stage) {
-	if _setup {
-		panic(" stage has been setup already ")
-	}
-
-	_setup = true
-
-	_stageWidth = float32(stageWidth)
-	_stageHeight = float32(stageHeight)
-	_stageRect.Width = _stageWidth
-	_stageRect.Height = -_stageHeight
-
-	_viewportRect.Width = float32(stageWidth) * scale
-	_viewportRect.Height = float32(stageHeight) * scale
-
-	rl.SetConfigFlags(rl.FlagWindowResizable)
-	rl.InitWindow(int32(_viewportRect.Width), int32(_viewportRect.Height), "< RayTheater - Project >")
-
-	if !rl.IsWindowReady() {
-		panic(" failed to open window ")
-	}
-
-	_stage = rl.LoadRenderTexture(stageWidth, stageHeight)
-	if !rl.IsRenderTextureReady(_stage) {
-		panic(" failed to create state rendertexture ")
-	}
-
-	s._valid = true
-
-	return
-}
-
-// Changes the Stages Title
-func (s Stage) Title(t string) Stage {
-	s._validate()
-	rl.SetWindowTitle(t)
-	return s
-}
-
-// Defines with how many Frames per Second the Stage is sopposed to run
-func (s Stage) FPS(f int32) Stage {
-	s._validate()
-	rl.SetTargetFPS(f)
-	return s
-}
-
-func (s Stage) IntegerScale(enable bool) Stage {
-	s._validate()
-	_integerScale = enable
-	return s
-}
-
-func (s Stage) Debug(level rl.TraceLogLevel) Stage {
-	s._validate()
-	rl.SetTraceLogLevel(level)
-	return s
-}
-
 /** Starts to play the given Scene on the Stage
 * @param scene - a struct that implements various interfaces  (@see ./stage/scene.go)
  */
-func (s Stage) Play(sc any) {
-	s._validate()
+func stagePlay(sc any) {
 
 	// Just so a window opens, at all, before we do anything else.
 	rl.BeginDrawing()
@@ -281,8 +219,6 @@ func onWindowResize(vp *rl.Rectangle, scale *float32) {
 
 	*scale = min(wW/float32(_stageWidth), wH/float32(_stageHeight))
 
-	// TODO: Reimplement Integer-Scaling
-	//
 	if _integerScale && *scale > 1 {
 		*scale = float32(math.Floor(float64(*scale)))
 	}
@@ -291,14 +227,4 @@ func onWindowResize(vp *rl.Rectangle, scale *float32) {
 	vp.Height = float32(_stageHeight) * *scale
 	vp.X = (wW - vp.Width) * 0.5
 	vp.Y = (wH - vp.Height) * 0.5
-}
-
-func (s Stage) _validate() {
-	if !s._valid {
-		panic(" can't modify a stage that is not set up ")
-	}
-
-	if _playing {
-		panic(" can't interact with a running stageplay ")
-	}
 }

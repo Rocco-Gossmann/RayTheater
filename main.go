@@ -13,7 +13,7 @@ func main() {
 
 	var ms scenes.SceneMain
 
-	stage.Setup(256, 192, 3.0).
+	stage.Build(256, 192, 3.0).
 		Title("RayTheater - DemoProject").
 		IntegerScale(true).
 		FPS(60).
