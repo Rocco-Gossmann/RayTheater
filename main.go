@@ -1,7 +1,8 @@
 package main
 
 import (
-	rl "github.com/gen2brain/raylib-go/raylib"
+	"fmt"
+
 	"github.com/rocco-gossmann/RayTheater/scenes"
 	"github.com/rocco-gossmann/RayTheater/stage"
 )
@@ -11,13 +12,14 @@ import (
 // ==============================================================================
 func main() {
 
+	fmt.Println("hello world")
+
 	var ms scenes.SceneMain
 
 	stage.Build(256, 192, 3.0).
 		Title("RayTheater - DemoProject").
 		IntegerScale(true).
 		FPS(60).
-		Debug(rl.LogDebug).
 		Play(&ms)
 
 }

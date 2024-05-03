@@ -1,5 +1,7 @@
 package stage
 
+import "github.com/rocco-gossmann/RayTheater/stage/components"
+
 type Loadable interface {
 	Load(ctx Context)
 }
@@ -18,4 +20,12 @@ type StageDrawable interface {
 
 type WindowDrawable interface {
 	WindowDraw(ctx Context)
+}
+
+type ITransform2D interface {
+	getTransform() *components.Transform2D
+}
+
+type iFreeable interface {
+	FreeFromStage(f *func())
 }

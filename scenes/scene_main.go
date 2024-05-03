@@ -4,10 +4,23 @@ import (
 	"log"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/rocco-gossmann/RayTheater/actors"
 	"github.com/rocco-gossmann/RayTheater/stage"
 )
 
-type SceneMain struct{}
+type SceneMain struct {
+	theDebug   actors.TheDebut
+	theDebugID stage.ActorID
+}
+
+func (s SceneMain) Load(ctx stage.Context) {
+	s.theDebugID = stage.AddActor(&s.theDebug)
+}
+
+func (s SceneMain) Unload(ctx stage.Context) any {
+	stage.RemoveActor(s.theDebugID)
+	return nil
+}
 
 func (s SceneMain) Tick(ctx stage.Context) bool {
 
@@ -25,7 +38,7 @@ func (s SceneMain) Tick(ctx stage.Context) bool {
 }
 
 func (s SceneMain) StageDraw(ctx stage.Context) {
-	rl.DrawText("Press and relase the ESC key\nor hit ALT+F4 to quit! ", 8, 8, 8, rl.LightGray)
+	rl.DrawText("Press and release the ESC key\nor hit ALT+F4 to quit! ", 8, 8, 8, rl.LightGray)
 }
 
 // Debug overlay

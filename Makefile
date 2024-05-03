@@ -4,6 +4,7 @@
 DEVVERSION:=$(shell git describe --tags)
 VERSION:=$(shell git describe --tags --abbr=0)
 
+#BUILDCMD:=CGO_ENABLED=1 CC="zig cc" CPP="zig c++" go build
 BUILDCMD:=CGO_ENABLED=1 go build
 
 WINBUILDNAME:=RayTheater.exe
@@ -18,7 +19,9 @@ BUILDDIR:= .
 # ==============================================================================
 
 debug.run: main.go
-	$(BUILDCMD) -ldflags="" -o $@
+	$(BUILDCMD) -ldflags=-linkmode=internal -o $@
+#	$(BUILDCMD) -o $@
+#   $(BUILDCMD) -ldflags="-g" -o $@
 #	$(BUILDCMD) -ldflags="-X main.Version=$(DEVVERSION)" -o $@
 
 

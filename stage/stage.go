@@ -5,6 +5,7 @@ import (
 	"math"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/rocco-gossmann/RayTheater/stage/components"
 )
 
 // Required to make sure Engine can quit by itself
@@ -16,6 +17,8 @@ func (s exitSceneStruct) WindowDraw(ctx Context) {}
 func (s exitSceneStruct) Unload(ctx Context) any { return nil }
 
 var exitScene exitSceneStruct
+
+type ActorID uint
 
 var (
 	defaultStageDraw  StageDrawable
@@ -67,13 +70,17 @@ var (
 	_playing      bool = false
 	_integerScale bool = false
 
-	_tickableStack = NewLinkedList[*Tickable]()
-
 	_scene          any = nil
 	_tickable       *Tickable
 	_stagedrawable  *StageDrawable
 	_windowdrawable *WindowDrawable
 	_unloadable     *Unloadable
+
+	_actorCnt          uint
+	_actorsTickable    map[ActorID]*Tickable
+	_actorsTransform2D map[ActorID]*components.Transform2D
+	_actorsUpdates     map[ActorID][]*func()
+	_actorsFreeable    map[ActorID]map[*iFreeable]*func()
 
 	ctx = Context{}
 )
@@ -111,21 +118,20 @@ MainLoop:
 			onWindowResize(&_viewportRect, &_viewportScale)
 		}
 
+		for _, at := range _actorsUpdates {
+			for _, fnc := range at {
+				(*fnc)()
+			}
+		}
+
 		if !(*_tickable).Tick(ctx) {
 			log.Println("tick == false => end")
 			switchScene(nil)
 			continue MainLoop
 		}
 
-		tickle := _tickableStack.Next
-		for tickle != nil {
-			if (*tickle.Item).Tick(ctx) {
-				tickle = (*tickle).Next
-			} else {
-				dead := tickle
-				tickle = (*tickle).Next
-				dead.Drop()
-			}
+		for _, tickle := range _actorsTickable {
+			(*tickle).Tick(ctx)
 		}
 
 		// Drawing on Gamebuffer (Resolution/Window-Size independed)
@@ -149,6 +155,52 @@ MainLoop:
 		//			rl.DrawFPS(4, 4)
 		//		}
 	}
+}
+
+func AddActor(a any) (id ActorID) {
+	log.SetPrefix("[Stage AddActor] ")
+	_actorCnt++
+	id = ActorID(_actorCnt)
+
+	_actorsUpdates[id] = make([]*func(), 0, 3)
+	_actorsFreeable[id] = make(map[*iFreeable]*func())
+
+	if t, ok := interface{}(a).(components.Transform2D); ok {
+		fnc := t.RegisterAtStage()
+		_actorsUpdates[id] = append(_actorsUpdates[id], fnc)
+
+		if f, ok := interface{}(t).(iFreeable); ok {
+			_actorsFreeable[id][&f] = fnc
+		}
+		_actorsTransform2D[id] = &t
+	}
+
+	if t, ok := interface{}(a).(Tickable); ok {
+		_actorsTickable[id] = &t
+	}
+
+	log.Printf(`
+	Add Actor:      %v
+		ID:			%d
+		Tickable:   %v
+		Transform:  %v
+		Freeable:   %v
+	\n`, a, id, _actorsTickable[id], _actorsTransform2D[id], _actorsFreeable[id])
+
+	return id
+}
+
+func RemoveActor(a ActorID) {
+
+	// Free all components bound to this stage
+	for i, f := range _actorsFreeable[a] {
+		(*i).FreeFromStage(f)
+	}
+
+	// Remove Actor from all Lists
+	delete(_actorsFreeable, a)
+	delete(_actorsTransform2D, a)
+	delete(_actorsTickable, a)
 }
 
 func switchScene(scene any) {
